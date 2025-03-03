@@ -1,0 +1,26 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  COMMIT:
+    sh: git rev-parse HEAD
+  VERSION:
+    sh: git describe --tags --abbrev=0
+  REMOTE: ghcr.io/coindotfi/cosmos-indexer
+
+tasks:
+  build:
+    cmds:
+      - docker build . -t indexer:local
+    silent: true
+
+  push:
+    cmds:
+      - docker tag indexer:local {{.REMOTE}}:{{.COMMIT}}
+      - docker tag indexer:local {{.REMOTE}}:{{.VERSION}}
+      - docker tag indexer:local {{.REMOTE}}:latest
+      - docker push {{.REMOTE}}:{{.COMMIT}}
+      - docker push {{.REMOTE}}:{{.VERSION}}
+      - docker push {{.REMOTE}}:latest
+    silent: true

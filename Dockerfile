@@ -103,7 +103,64 @@ COPY --from=busybox /bin/netstat /bin/netstat
 COPY --from=busybox /etc/passwd /etc/passwd
 COPY --from=busybox --chown=1137:1137 /home/cosmos-indexer /home/cosmos-indexer
 
+# Create config directory
+RUN mkdir -p /home/cosmos-indexer/config
+
+# Add default configuration file
+COPY config.yaml /home/cosmos-indexer/config/config.yaml
+
+# Set environment variables with default values
+ENV POSTGRES_HOST="34.48.145.151" \
+    POSTGRES_PORT="5432" \
+    POSTGRES_DB="postgres" \
+    POSTGRES_USER="postgres" \
+    POSTGRES_PASSWORD="YSpPEENv" \
+    LOG_PRETTY="true" \
+    LOG_LEVEL="info" \
+    INDEX_TRANSACTIONS="true" \
+    INDEX_BLOCK_EVENTS="true" \
+    START_BLOCK="1" \
+    END_BLOCK="-1" \
+    BLOCK_TIMER="10000" \
+    WAIT_FOR_CHAIN="true" \
+    WAIT_FOR_CHAIN_DELAY="10000" \
+    EXIT_WHEN_CAUGHT_UP="true" \
+    THROTTLING="6.0" \
+    RPC_WORKERS="1" \
+    REINDEX="true" \
+    REATTEMPT_FAILED_BLOCKS="true" \
+    RPC_URL="https://rpc.coinfi.zone" \
+    ACCOUNT_PREFIX="coin" \
+    CHAIN_ID="sovereign" \
+    CHAIN_NAME="CoinFi"
+
 # Set home directory and user
 WORKDIR /home/cosmos-indexer
 RUN chown -R cosmos-indexer /home/cosmos-indexer
 USER cosmos-indexer
+
+# Set the entrypoint to run the indexer with the default configuration
+ENTRYPOINT ["cosmos-indexer", "index", \
+    "--log.pretty=${LOG_PRETTY}", \
+    "--log.level=${LOG_LEVEL}", \
+    "--base.index-transactions=${INDEX_TRANSACTIONS}", \
+    "--base.index-block-events=${INDEX_BLOCK_EVENTS}", \
+    "--base.start-block=${START_BLOCK}", \
+    "--base.end-block=${END_BLOCK}", \
+    "--base.block-timer=${BLOCK_TIMER}", \
+    "--base.wait-for-chain=${WAIT_FOR_CHAIN}", \
+    "--base.wait-for-chain-delay=${WAIT_FOR_CHAIN_DELAY}", \
+    "--base.exit-when-caught-up=${EXIT_WHEN_CAUGHT_UP}", \
+    "--base.throttling=${THROTTLING}", \
+    "--base.rpc-workers=${RPC_WORKERS}", \
+    "--base.reindex=${REINDEX}", \
+    "--base.reattempt-failed-blocks=${REATTEMPT_FAILED_BLOCKS}", \
+    "--probe.rpc=${RPC_URL}", \
+    "--probe.account-prefix=${ACCOUNT_PREFIX}", \
+    "--probe.chain-id=${CHAIN_ID}", \
+    "--probe.chain-name=${CHAIN_NAME}", \
+    "--database.host=${POSTGRES_HOST}", \
+    "--database.database=${POSTGRES_DB}", \
+    "--database.port=${POSTGRES_PORT}", \
+    "--database.user=${POSTGRES_USER}", \
+    "--database.password=${POSTGRES_PASSWORD}"]
