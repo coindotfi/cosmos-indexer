@@ -39,7 +39,7 @@ FROM busybox:stable-musl AS busybox
 RUN addgroup --gid 1137 -S cosmos-indexer && adduser --uid 1137 -S cosmos-indexer -G cosmos-indexer
 
 # Use scratch for the final image
-FROM scratch
+FROM alpine:3.18
 WORKDIR /home/cosmos-indexer
 
 # Label should match your github repo
@@ -78,36 +78,9 @@ COPY --from=build-env /usr/lib/libncursesw.so.6 /lib
 # Install trusted CA certificates
 COPY --from=build-env /etc/ssl/cert.pem /etc/ssl/cert.pem
 
-# Install cli tools from busybox
-COPY --from=busybox /bin/ln /bin/ln
-COPY --from=busybox /bin/dd /bin/dd
-COPY --from=busybox /bin/vi /bin/vi
-COPY --from=busybox /bin/chown /bin/chown
-COPY --from=busybox /bin/id /bin/id
-COPY --from=busybox /bin/cp /bin/cp
-COPY --from=busybox /bin/ls /bin/ls
-COPY --from=busybox /bin/busybox /bin/sh
-COPY --from=busybox /bin/cat /bin/cat
-COPY --from=busybox /bin/less /bin/less
-COPY --from=busybox /bin/grep /bin/grep
-COPY --from=busybox /bin/sleep /bin/sleep
-COPY --from=busybox /bin/env /bin/env
-COPY --from=busybox /bin/tar /bin/tar
-COPY --from=busybox /bin/tee /bin/tee
-COPY --from=busybox /bin/du /bin/du
-COPY --from=busybox /bin/df /bin/df
-COPY --from=busybox /bin/nc /bin/nc
-COPY --from=busybox /bin/netstat /bin/netstat
-
 # Copy user from busybox to scratch
 COPY --from=busybox /etc/passwd /etc/passwd
 COPY --from=busybox --chown=1137:1137 /home/cosmos-indexer /home/cosmos-indexer
-
-# Create config directory
-RUN mkdir -p /home/cosmos-indexer/config
-
-# Add default configuration file
-COPY config.yaml /home/cosmos-indexer/config/config.yaml
 
 # Set environment variables with default values
 ENV POSTGRES_HOST="34.48.145.151" \
@@ -134,33 +107,37 @@ ENV POSTGRES_HOST="34.48.145.151" \
     CHAIN_ID="sovereign" \
     CHAIN_NAME="CoinFi"
 
+# Create entrypoint script to handle environment variable expansion
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'cosmos-indexer index \' >> /entrypoint.sh && \
+    echo '  --log.pretty=${LOG_PRETTY} \' >> /entrypoint.sh && \
+    echo '  --log.level=${LOG_LEVEL} \' >> /entrypoint.sh && \
+    echo '  --base.index-transactions=${INDEX_TRANSACTIONS} \' >> /entrypoint.sh && \
+    echo '  --base.index-block-events=${INDEX_BLOCK_EVENTS} \' >> /entrypoint.sh && \
+    echo '  --base.start-block=${START_BLOCK} \' >> /entrypoint.sh && \
+    echo '  --base.end-block=${END_BLOCK} \' >> /entrypoint.sh && \
+    echo '  --base.block-timer=${BLOCK_TIMER} \' >> /entrypoint.sh && \
+    echo '  --base.wait-for-chain=${WAIT_FOR_CHAIN} \' >> /entrypoint.sh && \
+    echo '  --base.wait-for-chain-delay=${WAIT_FOR_CHAIN_DELAY} \' >> /entrypoint.sh && \
+    echo '  --base.exit-when-caught-up=${EXIT_WHEN_CAUGHT_UP} \' >> /entrypoint.sh && \
+    echo '  --base.throttling=${THROTTLING} \' >> /entrypoint.sh && \
+    echo '  --base.rpc-workers=${RPC_WORKERS} \' >> /entrypoint.sh && \
+    echo '  --base.reindex=${REINDEX} \' >> /entrypoint.sh && \
+    echo '  --base.reattempt-failed-blocks=${REATTEMPT_FAILED_BLOCKS} \' >> /entrypoint.sh && \
+    echo '  --probe.rpc=${RPC_URL} \' >> /entrypoint.sh && \
+    echo '  --probe.account-prefix=${ACCOUNT_PREFIX} \' >> /entrypoint.sh && \
+    echo '  --probe.chain-id=${CHAIN_ID} \' >> /entrypoint.sh && \
+    echo '  --probe.chain-name=${CHAIN_NAME} \' >> /entrypoint.sh && \
+    echo '  --database.host=${POSTGRES_HOST} \' >> /entrypoint.sh && \
+    echo '  --database.database=${POSTGRES_DB} \' >> /entrypoint.sh && \
+    echo '  --database.port=${POSTGRES_PORT} \' >> /entrypoint.sh && \
+    echo '  --database.user=${POSTGRES_USER} \' >> /entrypoint.sh && \
+    echo '  --database.password=${POSTGRES_PASSWORD}' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
 # Set home directory and user
 WORKDIR /home/cosmos-indexer
-RUN chown -R cosmos-indexer /home/cosmos-indexer
 USER cosmos-indexer
 
-# Set the entrypoint to run the indexer with the default configuration
-ENTRYPOINT ["cosmos-indexer", "index", \
-    "--log.pretty=${LOG_PRETTY}", \
-    "--log.level=${LOG_LEVEL}", \
-    "--base.index-transactions=${INDEX_TRANSACTIONS}", \
-    "--base.index-block-events=${INDEX_BLOCK_EVENTS}", \
-    "--base.start-block=${START_BLOCK}", \
-    "--base.end-block=${END_BLOCK}", \
-    "--base.block-timer=${BLOCK_TIMER}", \
-    "--base.wait-for-chain=${WAIT_FOR_CHAIN}", \
-    "--base.wait-for-chain-delay=${WAIT_FOR_CHAIN_DELAY}", \
-    "--base.exit-when-caught-up=${EXIT_WHEN_CAUGHT_UP}", \
-    "--base.throttling=${THROTTLING}", \
-    "--base.rpc-workers=${RPC_WORKERS}", \
-    "--base.reindex=${REINDEX}", \
-    "--base.reattempt-failed-blocks=${REATTEMPT_FAILED_BLOCKS}", \
-    "--probe.rpc=${RPC_URL}", \
-    "--probe.account-prefix=${ACCOUNT_PREFIX}", \
-    "--probe.chain-id=${CHAIN_ID}", \
-    "--probe.chain-name=${CHAIN_NAME}", \
-    "--database.host=${POSTGRES_HOST}", \
-    "--database.database=${POSTGRES_DB}", \
-    "--database.port=${POSTGRES_PORT}", \
-    "--database.user=${POSTGRES_USER}", \
-    "--database.password=${POSTGRES_PASSWORD}"]
+# Use the shell script as entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
